@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stephen AI Trading Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:       #060d1a;
+    --bg2:      #0b1629;
+    --bg3:      #111f35;
+    --blue:     #00b4ff;
+    --blue-dim: #0066aa;
+    --green:    #00e676;
+    --red:      #ff1744;
+    --gold:     #ffd740;
+    --text:     #b0c8e8;
+    --text-dim: #4a6080;
+    --border:   rgba(0,180,255,0.12);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', monospace, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* GRID BG */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,180,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,180,255,0.02) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    background: rgba(6,13,26,0.95);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(20px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.8rem 1.5rem;
+  }
+
+  .nav-logo {
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--blue);
+    text-transform: uppercase;
+  }
+
+  .nav-logo span { color: var(--text); }
+
+  .nav-status {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    font-size: 0.8rem;
+  }
+
+  .status-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(0,230,118,0.1);
+    border: 1px solid rgba(0,230,118,0.3);
+    color: var(--green);
+    padding: 0.3rem 0.8rem;
+    border-radius: 100px;
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+  }
+
+  .pulse {
+    width: 7px; height: 7px;
+    background: var(--green);
+    border-radius: 50%;
+    animation: pulse 1.5s infinite;
+  }
+
+  @keyframes pulse {
+    0%,100% { opacity:1; transform:scale(1); }
+    50%      { opacity:0.4; transform:scale(1.4); }
+  }
+
+  .nav-time {
+    color: var(--text-dim);
+    font-family: monospace;
+    font-size: 0.85rem;
+  }
+
+  /* MAIN */
+  main {
+    position: relative;
+    z-index: 1;
+    padding: 5rem 1.5rem 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  /* TOP METRICS */
+  .metrics-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .metric-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.2rem;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+
+  .metric-card:hover { border-color: rgba(0,180,255,0.3); }
+
+  .metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--blue), transparent);
+  }
+
+  .metric-label {
+    font-size: 0.7rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 0.5rem;
+  }
+
+  .metric-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    font-family: monospace;
+    color: #fff;
+    line-height: 1;
+  }
+
+  .metric-sub {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-top: 0.3rem;
+  }
+
+  .metric-up   { color: var(--green); }
+  .metric-down { color: var(--red); }
+  .metric-gold { color: var(--gold); }
+
+  /* GRID LAYOUT */
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .dashboard-grid-3 {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  /* PANELS */
+  .panel {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.8rem 1.2rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+  }
+
+  .panel-title {
+    font-size: 0.75rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--blue);
+    font-weight: 600;
+  }
+
+  .panel-badge {
+    font-size: 0.7rem;
+    background: rgba(0,180,255,0.1);
+    color: var(--blue);
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    letter-spacing: 1px;
+  }
+
+  .panel-body { padding: 1.2rem; }
+
+  /* CHART */
+  .chart-container {
+    position: relative;
+    height: 220px;
+    padding: 1rem;
+  }
+
+  /* POSITIONS TABLE */
+  .positions-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+  }
+
+  .positions-table th {
+    text-align: left;
+    padding: 0.5rem 0.8rem;
+    color: var(--text-dim);
+    font-size: 0.7rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .positions-table td {
+    padding: 0.7rem 0.8rem;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    font-family: monospace;
+  }
+
+  .positions-table tr:hover td {
+    background: rgba(0,180,255,0.03);
+  }
+
+  .pos-buy  { color: var(--green); font-weight: 600; }
+  .pos-sell { color: var(--red);   font-weight: 600; }
+
+  .pnl-positive { color: var(--green); }
+  .pnl-negative { color: var(--red); }
+
+  /* REGIME BOX */
+  .regime-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.8rem;
+  }
+
+  .regime-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .regime-symbol {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    margin-bottom: 0.5rem;
+  }
+
+  .regime-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+  }
+
+  .regime-bull  { color: var(--green); }
+  .regime-bear  { color: var(--red); }
+  .regime-side  { color: var(--gold); }
+  .regime-volat { color: #ff6b35; }
+
+  .regime-conf {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-top: 0.3rem;
+  }
+
+  /* SIGNALS LOG */
+  .signal-log {
+    max-height: 280px;
+    overflow-y: auto;
+  }
+
+  .signal-log::-webkit-scrollbar { width: 3px; }
+  .signal-log::-webkit-scrollbar-track { background: transparent; }
+  .signal-log::-webkit-scrollbar-thumb { background: var(--blue-dim); border-radius: 2px; }
+
+  .log-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.8rem;
+    padding: 0.7rem 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    font-size: 0.8rem;
+  }
+
+  .log-time {
+    color: var(--text-dim);
+    font-family: monospace;
+    font-size: 0.72rem;
+    white-space: nowrap;
+    min-width: 55px;
+  }
+
+  .log-msg { color: var(--text); line-height: 1.4; }
+
+  .log-buy  { color: var(--green); font-weight: 600; }
+  .log-sell { color: var(--red);   font-weight: 600; }
+  .log-info { color: var(--blue); }
+  .log-warn { color: var(--gold); }
+
+  /* RISK GAUGES */
+  .gauge-row {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .gauge-item { }
+
+  .gauge-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.4rem;
+    font-size: 0.78rem;
+  }
+
+  .gauge-label { color: var(--text-dim); letter-spacing: 1px; }
+  .gauge-val   { color: var(--text); font-family: monospace; }
+
+  .gauge-bar {
+    height: 6px;
+    background: var(--bg3);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .gauge-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 1s ease;
+  }
+
+  .gauge-blue  { background: linear-gradient(90deg, var(--blue-dim), var(--blue)); }
+  .gauge-green { background: linear-gradient(90deg, #00a050, var(--green)); }
+  .gauge-red   { background: linear-gradient(90deg, #aa0020, var(--red)); }
+  .gauge-gold  { background: linear-gradient(90deg, #aa8000, var(--gold)); }
+
+  /* STRATEGY STATS */
+  .strategy-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+
+  .strategy-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.7rem 1rem;
+    background: var(--bg3);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-size: 0.82rem;
+  }
+
+  .strat-name { color: var(--text); letter-spacing: 1px; }
+
+  .strat-stats {
+    display: flex;
+    gap: 1.2rem;
+    font-family: monospace;
+    font-size: 0.78rem;
+  }
+
+  .strat-wr   { color: var(--green); }
+  .strat-pnl  { color: var(--blue); }
+  .strat-cnt  { color: var(--text-dim); }
+
+  /* CONTROL PANEL */
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.8rem;
+    margin-bottom: 1rem;
+  }
+
+  .ctrl-btn {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.7rem 1rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-family: monospace;
+  }
+
+  .ctrl-btn:hover {
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+
+  .ctrl-btn.danger:hover {
+    border-color: var(--red);
+    color: var(--red);
+  }
+
+  .ctrl-btn.success:hover {
+    border-color: var(--green);
+    color: var(--green);
+  }
+
+  /* MINI TICKER */
+  .ticker-bar {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.8rem 1.2rem;
+    display: flex;
+    gap: 2rem;
+    overflow-x: auto;
+    margin-bottom: 1rem;
+    align-items: center;
+  }
+
+  .ticker-item {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    white-space: nowrap;
+    font-size: 0.8rem;
+  }
+
+  .ticker-sym  { color: var(--blue);  font-weight: 600; letter-spacing: 1px; }
+  .ticker-price{ color: var(--text);  font-family: monospace; }
+  .ticker-up   { color: var(--green); font-family: monospace; }
+  .ticker-down { color: var(--red);   font-family: monospace; }
+
+  /* RESPONSIVE */
+  @media (max-width: 900px) {
+    .metrics-row       { grid-template-columns: repeat(2, 1fr); }
+    .dashboard-grid    { grid-template-columns: 1fr; }
+    .dashboard-grid-3  { grid-template-columns: 1fr; }
+    .controls          { grid-template-columns: repeat(2, 1fr); }
+    .regime-grid       { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">STEPHEN<span>AI</span> TRADING</div>
+  <div class="nav-status">
+    <div class="status-badge">
+      <div class="pulse"></div>
+      LIVE — PAPER MODE
+    </div>
+    <div class="nav-time" id="clock">--:--:-- UTC</div>
+  </div>
+</nav>
+
+<main>
+
+  <!-- TICKER BAR -->
+  <div class="ticker-bar" id="ticker">
+    <div class="ticker-item"><span class="ticker-sym">AAPL</span><span class="ticker-price" id="p-AAPL">$189.50</span><span class="ticker-up" id="c-AAPL">+0.82%</span></div>
+    <div class="ticker-item"><span class="ticker-sym">TSLA</span><span class="ticker-price" id="p-TSLA">$248.20</span><span class="ticker-up" id="c-TSLA">+1.24%</span></div>
+    <div class="ticker-item"><span class="ticker-sym">GOOGL</span><span class="ticker-price" id="p-GOOGL">$172.80</span><span class="ticker-down" id="c-GOOGL">-0.35%</span></div>
+    <div class="ticker-item"><span class="ticker-sym">NVDA</span><span class="ticker-price" id="p-NVDA">$875.40</span><span class="ticker-up" id="c-NVDA">+2.15%</span></div>
+    <div class="ticker-item"><span class="ticker-sym">EURUSD</span><span class="ticker-price" id="p-EU">1.08520</span><span class="ticker-up" id="c-EU">+0.18%</span></div>
+    <div class="ticker-item"><span class="ticker-sym">XAUUSD</span><span class="ticker-price" id="p-XAU">2,345.80</span><span class="ticker-up" id="c-XAU">+0.55%</span></div>
+  </div>
+
+  <!-- CONTROL BUTTONS -->
+  <div class="controls">
+    <button class="ctrl-btn success" onclick="startBot()">▶ Start Bot</button>
+    <button class="ctrl-btn" onclick="pauseBot()">⏸ Pause Bot</button>
+    <button class="ctrl-btn danger" onclick="emergencyStop()">⛔ Emergency Stop</button>
+    <button class="ctrl-btn" onclick="refreshData()">↻ Refresh Data</button>
+  </div>
+
+  <!-- TOP METRICS -->
+  <div class="metrics-row">
+    <div class="metric-card">
+      <div class="metric-label">Account Balance</div>
+      <div class="metric-value" id="balance">$100,000</div>
+      <div class="metric-sub metric-up" id="daily-pnl">+$0.00 today</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Open Positions</div>
+      <div class="metric-value" id="open-pos">0</div>
+      <div class="metric-sub" id="max-pos">Max 5 positions</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Win Rate</div>
+      <div class="metric-value metric-green" id="win-rate">0%</div>
+      <div class="metric-sub" id="wins-losses">0W / 0L</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Total P&L</div>
+      <div class="metric-value metric-gold" id="total-pnl">$0.00</div>
+      <div class="metric-sub" id="trades-today">0 trades today</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Drawdown</div>
+      <div class="metric-value" id="drawdown">0.0%</div>
+      <div class="metric-sub metric-down">Max 10%</div>
+    </div>
+  </div>
+
+  <!-- CHARTS ROW -->
+  <div class="dashboard-grid-3">
+    <!-- Equity Curve -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Equity Curve</span>
+        <span class="panel-badge">Live</span>
+      </div>
+      <div class="chart-container">
+        <canvas id="equityChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Win/Loss Pie -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Win / Loss</span>
+        <span class="panel-badge" id="total-trades-badge">0 Trades</span>
+      </div>
+      <div class="chart-container">
+        <canvas id="winLossChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- POSITIONS + REGIMES -->
+  <div class="dashboard-grid">
+    <!-- Open Positions -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Open Positions</span>
+        <span class="panel-badge" id="pos-count">0 Open</span>
+      </div>
+      <div class="panel-body">
+        <table class="positions-table">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Side</th>
+              <th>Entry</th>
+              <th>Current</th>
+              <th>P&L</th>
+              <th>Strategy</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="positions-body">
+            <tr>
+              <td colspan="7" style="text-align:center; color:var(--text-dim); padding:2rem;">
+                No open positions
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Market Regimes -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Market Regimes</span>
+        <span class="panel-badge">HMM Brain</span>
+      </div>
+      <div class="panel-body">
+        <div class="regime-grid" id="regime-grid">
+          <div class="regime-card">
+            <div class="regime-symbol">AAPL</div>
+            <div class="regime-name regime-bull">BULL TREND</div>
+            <div class="regime-conf">Confidence: 72%</div>
+          </div>
+          <div class="regime-card">
+            <div class="regime-symbol">TSLA</div>
+            <div class="regime-name regime-volat">HIGH VOLATILITY</div>
+            <div class="regime-conf">Confidence: 68%</div>
+          </div>
+          <div class="regime-card">
+            <div class="regime-symbol">EURUSD</div>
+            <div class="regime-name regime-side">SIDEWAYS</div>
+            <div class="regime-conf">Confidence: 55%</div>
+          </div>
+          <div class="regime-card">
+            <div class="regime-symbol">XAUUSD</div>
+            <div class="regime-name regime-bull">BULL TREND</div>
+            <div class="regime-conf">Confidence: 81%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RISK + STRATEGIES + LOG -->
+  <div class="dashboard-grid">
+    <!-- Risk Gauges -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Risk Monitor</span>
+        <span class="panel-badge" id="risk-status">ALL CLEAR</span>
+      </div>
+      <div class="panel-body">
+        <div class="gauge-row">
+          <div class="gauge-item">
+            <div class="gauge-header">
+              <span class="gauge-label">Daily Loss Used</span>
+              <span class="gauge-val" id="daily-loss-val">0.0% / 3.0%</span>
+            </div>
+            <div class="gauge-bar">
+              <div class="gauge-fill gauge-red" id="daily-loss-bar" style="width:0%"></div>
+            </div>
+          </div>
+          <div class="gauge-item">
+            <div class="gauge-header">
+              <span class="gauge-label">Max Drawdown</span>
+              <span class="gauge-val" id="dd-val">0.0% / 10.0%</span>
+            </div>
+            <div class="gauge-bar">
+              <div class="gauge-fill gauge-red" id="dd-bar" style="width:0%"></div>
+            </div>
+          </div>
+          <div class="gauge-item">
+            <div class="gauge-header">
+              <span class="gauge-label">Account Heat</span>
+              <span class="gauge-val" id="heat-val">0.0% / 5.0%</span>
+            </div>
+            <div class="gauge-bar">
+              <div class="gauge-fill gauge-gold" id="heat-bar" style="width:0%"></div>
+            </div>
+          </div>
+          <div class="gauge-item">
+            <div class="gauge-header">
+              <span class="gauge-label">Positions Used</span>
+              <span class="gauge-val" id="pos-val">0 / 5</span>
+            </div>
+            <div class="gauge-bar">
+              <div class="gauge-fill gauge-blue" id="pos-bar" style="width:0%"></div>
+            </div>
+          </div>
+          <div class="gauge-item">
+            <div class="gauge-header">
+              <span class="gauge-label">Win Streak</span>
+              <span class="gauge-val" id="streak-val">0 wins</span>
+            </div>
+            <div class="gauge-bar">
+              <div class="gauge-fill gauge-green" id="streak-bar" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Signal Log -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Signal Log</span>
+        <span class="panel-badge">Live</span>
+      </div>
+      <div class="panel-body" style="padding:0.5rem 1rem;">
+        <div class="signal-log" id="signal-log">
+          <div class="log-item">
+            <span class="log-time">--:--</span>
+            <span class="log-msg log-info">Bot initialized. Waiting for market open...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STRATEGY PERFORMANCE -->
+  <div class="panel" style="margin-bottom:1rem;">
+    <div class="panel-header">
+      <span class="panel-title">Strategy Performance</span>
+      <span class="panel-badge">All Time</span>
+    </div>
+    <div class="panel-body">
+      <div class="strategy-list">
+        <div class="strategy-item">
+          <span class="strat-name">TREND FOLLOWING</span>
+          <div class="strat-stats">
+            <span class="strat-wr">0% WR</span>
+            <span class="strat-pnl">$0.00</span>
+            <span class="strat-cnt">0 trades</span>
+          </div>
+        </div>
+        <div class="strategy-item">
+          <span class="strat-name">MEAN REVERSION</span>
+          <div class="strat-stats">
+            <span class="strat-wr">0% WR</span>
+            <span class="strat-pnl">$0.00</span>
+            <span class="strat-cnt">0 trades</span>
+          </div>
+        </div>
+        <div class="strategy-item">
+          <span class="strat-name">BREAKOUT</span>
+          <div class="strat-stats">
+            <span class="strat-wr">0% WR</span>
+            <span class="strat-pnl">$0.00</span>
+            <span class="strat-cnt">0 trades</span>
+          </div>
+        </div>
+        <div class="strategy-item">
+          <span class="strat-name">SMC STRATEGY</span>
+          <div class="strat-stats">
+            <span class="strat-wr">0% WR</span>
+            <span class="strat-pnl">$0.00</span>
+            <span class="strat-cnt">0 trades</span>
+          </div>
+        </div>
+        <div class="strategy-item">
+          <span class="strat-name">VOLUME ANOMALY</span>
+          <div class="strat-stats">
+            <span class="strat-wr">0% WR</span>
+            <span class="strat-pnl">$0.00</span>
+            <span class="strat-cnt">0 trades</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ── CLOCK ────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toUTCString().split(' ')[4] + ' UTC';
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── EQUITY CHART ─────────────────────────────────────
+const eqCtx = document.getElementById('equityChart').getContext('2d');
+const equityData = {
+  labels: Array.from({length: 20}, (_, i) => 'Day ' + (i+1)),
+  datasets: [{
+    label: 'Equity',
+    data: Array.from({length: 20}, (_, i) => 100000 + Math.random() * 2000 - 500),
+    borderColor: '#00b4ff',
+    backgroundColor: 'rgba(0,180,255,0.05)',
+    borderWidth: 2,
+    fill: true,
+    tension: 0.4,
+    pointRadius: 2,
+    pointHoverRadius: 5,
+  }]
+};
+
+const equityChart = new Chart(eqCtx, {
+  type: 'line',
+  data: equityData,
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false }
+    },
+    scales: {
+      x: {
+        ticks: { color: '#4a6080', font: { size: 10 } },
+        grid:  { color: 'rgba(0,180,255,0.05)' }
+      },
+      y: {
+        ticks: {
+          color: '#4a6080',
+          font: { size: 10 },
+          callback: v => '$' + v.toLocaleString()
+        },
+        grid: { color: 'rgba(0,180,255,0.05)' }
+      }
+    }
+  }
+});
+
+// ── WIN/LOSS CHART ────────────────────────────────────
+const wlCtx = document.getElementById('winLossChart').getContext('2d');
+const winLossChart = new Chart(wlCtx, {
+  type: 'doughnut',
+  data: {
+    labels: ['Wins', 'Losses'],
+    datasets: [{
+      data: [0, 0],
+      backgroundColor: ['rgba(0,230,118,0.8)', 'rgba(255,23,68,0.8)'],
+      borderColor:     ['#00e676', '#ff1744'],
+      borderWidth: 2,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { color: '#b0c8e8', font: { size: 11 }, padding: 15 }
+      }
+    },
+    cutout: '65%'
+  }
+});
+
+// ── LOG SYSTEM ───────────────────────────────────────
+const logContainer = document.getElementById('signal-log');
+
+function addLog(msg, type = 'info') {
+  const now  = new Date();
+  const time = now.toTimeString().split(' ')[0].substring(0, 5);
+  const item = document.createElement('div');
+  item.className = 'log-item';
+  item.innerHTML =
+    '<span class="log-time">' + time + '</span>' +
+    '<span class="log-msg log-' + type + '">' + msg + '</span>';
+  logContainer.insertBefore(item, logContainer.firstChild);
+
+  // Keep only last 50 logs
+  while (logContainer.children.length > 50) {
+    logContainer.removeChild(logContainer.lastChild);
+  }
+}
+
+// ── CONTROLS ─────────────────────────────────────────
+function startBot() {
+  addLog('Bot START command sent!', 'info');
+  document.querySelector('.status-badge').innerHTML =
+    '<div class="pulse"></div> RUNNING — PAPER MODE';
+}
+
+function pauseBot() {
+  addLog('Bot PAUSED by user', 'warn');
+}
+
+function emergencyStop() {
+  if (confirm('EMERGENCY STOP: Close all positions and stop bot?')) {
+    addLog('EMERGENCY STOP TRIGGERED!', 'sell');
+    document.querySelector('.status-badge').innerHTML =
+      '<div style="width:7px;height:7px;background:#ff1744;border-radius:50%;"></div> EMERGENCY STOP';
+    document.querySelector('.status-badge').style.background = 'rgba(255,23,68,0.1)';
+    document.querySelector('.status-badge').style.borderColor = 'rgba(255,23,68,0.3)';
+    document.querySelector('.status-badge').style.color = '#ff1744';
+  }
+}
+
+function refreshData() {
+  addLog('Data refresh requested...', 'info');
+  setTimeout(() => addLog('Market data refreshed!', 'info'), 1500);
+}
+
+// ── MOCK LIVE UPDATES ─────────────────────────────────
+function mockUpdate() {
+  // Simulate price changes
+  const tickers = {
+    'AAPL': [189.50, 0.82],
+    'TSLA': [248.20, 1.24],
+    'GOOGL': [172.80, -0.35],
+    'NVDA': [875.40, 2.15],
+  };
+
+  Object.entries(tickers).forEach(([sym, [price, chg]]) => {
+    const change = chg + (Math.random() - 0.5) * 0.1;
+    const newPrice = price + (Math.random() - 0.5) * 0.5;
+    const el = document.getElementById('p-' + sym);
+    const ce = document.getElementById('c-' + sym);
+    if (el) el.textContent = '$' + newPrice.toFixed(2);
+    if (ce) {
+      ce.textContent = (change >= 0 ? '+' : '') + change.toFixed(2) + '%';
+      ce.className = change >= 0 ? 'ticker-up' : 'ticker-down';
+    }
+  });
+}
+
+setInterval(mockUpdate, 5000);
+
+// ── SIMULATE SIGNALS ──────────────────────────────────
+const signals = [
+  ['BUY signal AAPL — Score 8/10 — TREND FOLLOWING', 'buy'],
+  ['Regime detected: BULL TREND (confidence 75%)', 'info'],
+  ['Risk check passed — position size: 2 shares', 'info'],
+  ['Order placed: BUY AAPL @ $189.50', 'buy'],
+  ['Break even set for AAPL — trade risk-free!', 'info'],
+  ['TP1 HIT — AAPL +$45.00', 'buy'],
+  ['SELL signal EURUSD — Score 7/10 — SMC', 'sell'],
+  ['News protection active — skipping TSLA', 'warn'],
+  ['Daily report sent to Telegram', 'info'],
+  ['Volume anomaly detected on NVDA — 3.2x average', 'warn'],
+];
+
+let sigIdx = 0;
+function simulateSignal() {
+  if (sigIdx < signals.length) {
+    addLog(signals[sigIdx][0], signals[sigIdx][1]);
+    sigIdx++;
+  }
+}
+
+// Add signals gradually
+signals.forEach((_, i) => {
+  setTimeout(simulateSignal, (i + 1) * 3000);
+});
+
+// ── INITIAL LOG ───────────────────────────────────────
+addLog('Dashboard connected — Paper Trading Mode', 'info');
+addLog('Watching: AAPL, TSLA, GOOGL, MSFT, NVDA, EURUSD, GBPUSD, XAUUSD', 'info');
+addLog('HMM Brain initialized — 4 regime detection active', 'info');
+addLog('Risk Manager: Max 1% per trade | Max 3% daily loss', 'info');
+</script>
+</body>
+</html>
